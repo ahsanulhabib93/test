@@ -1,34 +1,41 @@
-# deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: hello-world-app
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: hello-world-app
-  template:
-    metadata:
-      labels:
-        app: hello-world-app
-    spec:
-      containers:
-        - name: hello-world-app
-          image: your-docker-image:tag
-          ports:
-            - containerPort: 5000
+name: CI/CD Pipeline
 
-# service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: hello-world-service
-spec:
-  selector:
-    app: hello-world-app
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 5000
-  type: LoadBalancer
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: 14
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run SonarQube analysis
+        uses: sonarsource/sonarqube-scan-action@v1
+        with:
+          sonar-login: ${{ secrets.SONAR_TOKEN }}
+          sonar-project-key: <your-sonar-project-key>
+          sonar-organization: <your-sonar-organization>
+          sonar-project-name: <your-sonar-project-name>
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t your-docker-image:tag .
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          docker push your-docker-image:tag
+
+      - name: Deploy to Kubernetes
+        run: kubectl apply -f path/to/kubernetes/yaml/files
+        env:
+          KUBECONFIG: ${{ secrets.KUBE_CONFIG }}
